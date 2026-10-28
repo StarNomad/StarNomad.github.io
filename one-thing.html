@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One Thing — Slow and Steady</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 560px; margin: 2rem auto; padding: 0 1rem; color: #222; line-height: 1.5; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.2rem; }
+  .tagline { color: #666; margin-top: 0; }
+  #today-box { border: 2px solid #2e7d32; border-radius: 12px; padding: 1.2rem; margin: 1.5rem 0; background: #f1f8e9; }
+  #today-text { font-size: 1.4rem; font-weight: 600; }
+  .waiting { color: #666; }
+  button { font-size: 1rem; padding: 0.5rem 1rem; margin-right: 0.5rem; border-radius: 8px; border: 1px solid #999; background: #fff; cursor: pointer; }
+  button.primary { background: #2e7d32; color: #fff; border-color: #2e7d32; }
+  textarea { width: 100%; box-sizing: border-box; font-size: 1rem; padding: 0.5rem; border-radius: 8px; border: 1px solid #999; }
+  .done-trail { color: #666; font-size: 0.95rem; }
+  .done-trail li { margin-bottom: 0.2rem; }
+  .hint { color: #666; font-size: 0.95rem; }
+</style>
+</head>
+<body>
+<h1>🦥 One Thing</h1>
+<p class="tagline">Slow and steady. One dreaded thing a day, in its smallest slice, and nothing else until it is done.</p>
+
+<div id="today-box">
+  <div>Today's one thing:</div>
+  <div id="today-text"></div>
+  <p>
+    <button class="primary" id="done-btn">Done — that's enough for today</button>
+    <button id="skip-btn">Not this one — put it back in the pile</button>
+  </p>
+  <p class="waiting" id="waiting-text"></p>
+</div>
+
+<h2>Add to the pile</h2>
+<p class="hint">Write the smallest first slice, about two minutes of work. Not "clean the garage" — "put one box by the door".</p>
+<textarea id="new-chore" rows="2" placeholder="One dreaded thing, in its smallest slice…"></textarea>
+<p><button class="primary" id="add-btn">Add it to the pile</button></p>
+
+<h2>Done trail</h2>
+<ul class="done-trail" id="done-list"></ul>
+<p><button id="reset-btn">Clear everything and start over</button></p>
+<p class="hint">Everything stays on this device. No account, no server, no data leaves this page. Your list lives in this browser's local storage only.</p>
+
+<script>
+(function () {
+  var KEY = 'onething-v1';
+
+  function todayKey() {
+    var d = new Date();
+    var m = '' + (d.getMonth() + 1);
+    var day = '' + d.getDate();
+    if (m.length === 1) m = '0' + m;
+    if (day.length === 1) day = '0' + day;
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.chores)) return parsed;
+      }
+    } catch (e) { /* corrupted storage: start fresh */ }
+    return { chores: [], today: null };
+  }
+
+  function save(state) {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* storage full/blocked: keep going in memory */ }
+  }
+
+  function nextId(state) {
+    var max = 0;
+    state.chores.forEach(function (c) { if (c.id > max) max = c.id; });
+    return max + 1;
+  }
+
+  // Pick (or keep) today's chore. Pure over state + a date key: testable.
+  function pickToday(state, dateKey) {
+    if (!state.today || state.today.date !== dateKey) {
+      var open = state.chores.filter(function (c) { return !c.doneDate; });
+      state.today = open.length ? { date: dateKey, choreId: open[0].id, done: false } : { date: dateKey, choreId: null, done: false };
+    }
+    return state.today;
+  }
+
+  function findChore(state, id) {
+    for (var i = 0; i < state.chores.length; i++) {
+      if (state.chores[i].id === id) return state.chores[i];
+    }
+    return null;
+  }
+
+  function addChore(state, text) {
+    text = (text || '').trim();
+    if (!text) return null;
+    var chore = { id: nextId(state), text: text, doneDate: null };
+    state.chores.push(chore);
+    return chore;
+  }
+
+  function markDone(state, dateKey) {
+    var t = pickToday(state, dateKey);
+    if (t.choreId === null) return;
+    var chore = findChore(state, t.choreId);
+    if (chore) chore.doneDate = dateKey;
+    t.done = true;
+  }
+
+  // Skip: move today's chore to the back of the queue, pick the next open one.
+  function skipToday(state, dateKey) {
+    var t = pickToday(state, dateKey);
+    if (t.choreId === null) return;
+    var chore = findChore(state, t.choreId);
+    if (!chore) return;
+    state.chores = state.chores.filter(function (c) { return c.id !== chore.id; });
+    state.chores.push(chore);
+    var open = state.chores.filter(function (c) { return !c.doneDate; });
+    state.today = open.length ? { date: dateKey, choreId: open[0].id, done: false } : { date: dateKey, choreId: null, done: false };
+  }
+
+  function waitingCount(state) {
+    return state.chores.filter(function (c) { return !c.doneDate; }).length;
+  }
+
+  // ---- UI ----
+  var state = load();
+  var todayEl = document.getElementById('today-text');
+  var waitingEl = document.getElementById('waiting-text');
+  var doneListEl = document.getElementById('done-list');
+  var inputEl = document.getElementById('new-chore');
+
+  function render() {
+    var t = pickToday(state, todayKey());
+    save(state);
+    if (t.choreId === null) {
+      todayEl.textContent = 'Nothing waiting. Add something dreaded below.';
+    } else if (t.done) {
+      todayEl.textContent = 'Done for today. Enjoy the rest. 🦥';
+    } else {
+      var chore = findChore(state, t.choreId);
+      todayEl.textContent = chore ? chore.text : 'Nothing waiting.';
+    }
+    var waiting = waitingCount(state);
+    waitingEl.textContent = waiting === 0
+      ? 'The pile is empty.'
+      : waiting + ' more waiting, patiently. You do not have to look at them.';
+    var done = state.chores.filter(function (c) { return c.doneDate; }).slice(-10).reverse();
+    doneListEl.innerHTML = '';
+    done.forEach(function (c) {
+      var li = document.createElement('li');
+      li.textContent = c.doneDate + ' — ' + c.text;
+      doneListEl.appendChild(li);
+    });
+  }
+
+  document.getElementById('done-btn').addEventListener('click', function () {
+    markDone(state, todayKey());
+    render();
+  });
+  document.getElementById('skip-btn').addEventListener('click', function () {
+    skipToday(state, todayKey());
+    render();
+  });
+  document.getElementById('add-btn').addEventListener('click', function () {
+    var added = addChore(state, inputEl.value);
+    if (added) {
+      inputEl.value = '';
+      render();
+    }
+  });
+  document.getElementById('reset-btn').addEventListener('click', function () {
+    if (window.confirm('Clear the whole pile and the done trail?')) {
+      state = { chores: [], today: null };
+      render();
+    }
+  });
+
+  // Expose logic for testing (browser console / node harness).
+  window.OneThing = {
+    load: load, save: save, pickToday: pickToday, addChore: addChore,
+    markDone: markDone, skipToday: skipToday, waitingCount: waitingCount,
+    todayKey: todayKey
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>

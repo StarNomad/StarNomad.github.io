@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trailhead — Touch Grass Companion</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; background: #f4f1ea; color: #2d2a26; }
+  h1 { font-size: 1.8rem; }
+  .card { background: #fff; border-radius: 12px; padding: 1.2rem; margin: 1rem 0; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  label { display: block; margin: .6rem 0 .2rem; font-weight: 600; }
+  input, select, textarea { width: 100%; padding: .6rem; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
+  button { background: #2e7d32; color: #fff; border: 0; border-radius: 8px; padding: .8rem 1.4rem; font-size: 1.05rem; cursor: pointer; margin-top: 1rem; width: 100%; }
+  button:disabled { background: #9e9e9e; }
+  #out { white-space: pre-wrap; }
+  .hint { font-size: .85rem; color: #666; }
+  details { margin-top: 1rem; }
+</style>
+</head>
+<body>
+<h1>🌲 Trailhead</h1>
+<p>Your open-weight trail companion. Describe your hike — get a gear checklist, safety brief, and Leave No Trace reminders. Powered by an open-weight model, free forever.</p>
+
+<div class="card">
+  <label for="key">Groq API key (free at console.groq.com — stays in your browser)</label>
+  <input id="key" type="password" placeholder="gsk_..." autocomplete="off">
+  <p class="hint">Your key never leaves this page except to call Groq's API directly.</p>
+
+  <label for="trail">Trail / destination</label>
+  <input id="trail" placeholder="e.g. Bear Mountain Loop, NY">
+
+  <label for="dist">Distance</label>
+  <select id="dist">
+    <option>Under 3 miles</option>
+    <option>3–7 miles</option>
+    <option>7–12 miles</option>
+    <option>Over 12 miles</option>
+  </select>
+
+  <label for="season">Season / conditions</label>
+  <select id="season">
+    <option>Fall — cool, foliage</option>
+    <option>Winter — cold, possible ice/snow</option>
+    <option>Spring — mud, variable</option>
+    <option>Summer — heat, bugs</option>
+  </select>
+
+  <label for="group">Who's going</label>
+  <input id="group" placeholder="e.g. solo, 2 adults + 1 kid, dog">
+
+  <label for="notes">Anything else (injuries, gear you own, etc.)</label>
+  <textarea id="notes" rows="2" placeholder="optional"></textarea>
+
+  <button id="go" onclick="plan()">🌿 Plan my hike</button>
+</div>
+
+<div class="card" id="outcard" style="display:none">
+  <h2>Your trail brief</h2>
+  <div id="out"></div>
+</div>
+
+<details>
+  <summary>Why open-weight?</summary>
+  <p>Trailhead calls <b>llama-3.3-70b-versatile</b> — Meta's open-weight model — through Groq's free tier.
+  No subscription, no per-hike fee, no vendor lock-in. Swap in any open model (Mixtral, Qwen, DeepSeek)
+  by changing one string. The whole app is one HTML file: no build step, no server, works from a phone
+  on the trailhead parking lot.</p>
+</details>
+
+<script>
+async function plan() {
+  const key = document.getElementById('key').value.trim();
+  if (!key) { alert('Paste your free Groq API key first (console.groq.com).'); return; }
+  const trail = document.getElementById('trail').value.trim() || 'a local trail';
+  const dist = document.getElementById('dist').value;
+  const season = document.getElementById('season').value;
+  const group = document.getElementById('group').value.trim() || 'unspecified group';
+  const notes = document.getElementById('notes').value.trim();
+
+  const btn = document.getElementById('go');
+  btn.disabled = true; btn.textContent = '🥾 Lacing up...';
+  document.getElementById('outcard').style.display = 'block';
+  document.getElementById('out').textContent = 'Asking the model...';
+
+  const prompt = `You are Trailhead, a hiking safety companion. A hiker asks for a trail brief.
+Trail: ${trail}
+Distance: ${dist}
+Conditions: ${season}
+Group: ${group}
+Extra notes: ${notes || 'none'}
+
+Reply in exactly these sections, concise bullet points:
+1. GEAR CHECKLIST — what to bring for these conditions (be specific, no generic fluff)
+2. SAFETY BRIEF — top risks for this hike and how to mitigate them
+3. LEAVE NO TRACE — 2-3 reminders relevant to this trip
+4. GO / NO-GO — one-line verdict with the single biggest factor
+Keep it under 300 words. Practical, no-nonsense tone.`;
+
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 700,
+        temperature: 0.5
+      })
+    });
+    if (!r.ok) throw new Error('API error ' + r.status);
+    const j = await r.json();
+    document.getElementById('out').textContent = j.choices[0].message.content;
+  } catch (e) {
+    document.getElementById('out').textContent = 'Error: ' + e.message + '\nCheck your API key and connection.';
+  }
+  btn.disabled = false; btn.textContent = '🌿 Plan my hike';
+}
+</script>
+</body>
+</html>

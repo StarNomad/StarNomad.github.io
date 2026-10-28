@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BirthStar — Your Birthday, Your Star Chart</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; background: #12101f; color: #e8e4f5; }
+  h1 { font-size: 1.8rem; }
+  .card { background: #1e1a33; border-radius: 12px; padding: 1.2rem; margin: 1rem 0; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  label { display: block; margin: .6rem 0 .2rem; font-weight: 600; }
+  input { width: 100%; padding: .6rem; border: 1px solid #4a4370; border-radius: 8px; font-size: 1rem; box-sizing: border-box; background: #171430; color: #e8e4f5; }
+  button { background: #6d28d9; color: #fff; border: 0; border-radius: 8px; padding: .8rem 1.4rem; font-size: 1.05rem; cursor: pointer; margin-top: 1rem; width: 100%; }
+  button:disabled { background: #55507a; }
+  #out { white-space: pre-wrap; }
+  .hint { font-size: .85rem; color: #a49cc9; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem .9rem; margin-top: .6rem; }
+  .grid b { color: #c4b5fd; }
+  #chart { display: block; margin: 0 auto; }
+  details { margin-top: 1rem; }
+</style>
+</head>
+<body>
+<h1>✨ BirthStar</h1>
+<p>Type in a birthday. Get a star chart and a detailed horoscope woven from several traditions at once — Western zodiac, Chinese zodiac, moon phase, and numerology — by an open-weight model. For entertainment, and priced like it should be: free.</p>
+
+<div class="card">
+  <label for="dob">Birthday</label>
+  <input id="dob" type="date">
+  <label for="name">Name (optional)</label>
+  <input id="name" placeholder="e.g. Alex">
+  <button onclick="chart()">🔮 Draw my star chart</button>
+  <p class="hint">The chart math runs entirely in your browser — your birthday never leaves this page.</p>
+</div>
+
+<div class="card" id="chartcard" style="display:none">
+  <h2>Your star chart</h2>
+  <svg id="chart" width="300" height="300" viewBox="0 0 300 300"></svg>
+  <div class="grid" id="facts"></div>
+  <p class="hint" id="cny"></p>
+  <div id="quick"></div>
+</div>
+
+<div class="card" id="aicard" style="display:none">
+  <h2>Your detailed reading</h2>
+  <label for="key">Groq API key (free at console.groq.com — stays in your browser)</label>
+  <input id="key" type="password" placeholder="gsk_..." autocomplete="off">
+  <button id="go" onclick="reading()">✍️ Write my reading</button>
+  <div id="out" style="margin-top:1rem"></div>
+</div>
+
+<details>
+  <summary>Why open-weight?</summary>
+  <p>BirthStar calls <b>llama-3.3-70b-versatile</b> — Meta's open-weight model — through Groq's free tier.
+  A birth date is personal: with an open model there is no account, no server storing your chart, and no
+  subscription wall between you and a bit of fun. Swap in any open model by changing one string.
+  The whole app is one HTML file: no build step, no server.</p>
+</details>
+
+<p class="hint">Astrology is entertainment, not science — enjoy it that way. 🌙</p>
+
+<script>
+const SIGNS = [
+  {n:'Capricorn', g:'♑', el:'Earth', ruler:'Saturn', from:[1,1]},
+  {n:'Aquarius', g:'♒', el:'Air', ruler:'Uranus', from:[1,20]},
+  {n:'Pisces', g:'♓', el:'Water', ruler:'Neptune', from:[2,19]},
+  {n:'Aries', g:'♈', el:'Fire', ruler:'Mars', from:[3,21]},
+  {n:'Taurus', g:'♉', el:'Earth', ruler:'Venus', from:[4,20]},
+  {n:'Gemini', g:'♊', el:'Air', ruler:'Mercury', from:[5,21]},
+  {n:'Cancer', g:'♋', el:'Water', ruler:'the Moon', from:[6,21]},
+  {n:'Leo', g:'♌', el:'Fire', ruler:'the Sun', from:[7,23]},
+  {n:'Virgo', g:'♍', el:'Earth', ruler:'Mercury', from:[8,23]},
+  {n:'Libra', g:'♎', el:'Air', ruler:'Venus', from:[9,23]},
+  {n:'Scorpio', g:'♏', el:'Water', ruler:'Pluto', from:[10,23]},
+  {n:'Sagittarius', g:'♐', el:'Fire', ruler:'Jupiter', from:[11,22]},
+  {n:'Capricorn', g:'♑', el:'Earth', ruler:'Saturn', from:[12,22]},
+];
+const ANIMALS = ['Rat','Ox','Tiger','Rabbit','Dragon','Snake','Horse','Goat','Monkey','Rooster','Dog','Pig'];
+const STEM_ELEMENTS = ['Wood','Wood','Fire','Fire','Earth','Earth','Metal','Metal','Water','Water'];
+const PHASES = ['New Moon','Waxing Crescent','First Quarter','Waxing Gibbous','Full Moon','Waning Gibbous','Last Quarter','Waning Crescent'];
+const SYNODIC = 29.53058867;
+
+function sunSign(m, d) {
+  let s = SIGNS[0];
+  for (const x of SIGNS) if (m > x.from[0] || (m === x.from[0] && d >= x.from[1])) s = x;
+  return s;
+}
+function chinese(year) {
+  const i = ((year - 4) % 12 + 12) % 12;
+  const e = STEM_ELEMENTS[((year - 4) % 10 + 10) % 10];
+  return { animal: ANIMALS[i], element: e, yy: (year % 2 === 0) ? 'Yang' : 'Yin' };
+}
+function lifePath(y, m, d) {
+  let s = String(y) + String(m).padStart(2,'0') + String(d).padStart(2,'0');
+  let n = s.split('').reduce((a,c) => a + (+c), 0);
+  while (n > 9 && n !== 11 && n !== 22 && n !== 33) n = String(n).split('').reduce((a,c) => a + (+c), 0);
+  return n;
+}
+function moonPhase(dateUTC) {
+  const ref = Date.UTC(2000, 0, 6, 18, 14) / 86400000; // known new moon
+  let age = ((dateUTC / 86400000 - ref) % SYNODIC + SYNODIC) % SYNODIC;
+  const idx = Math.floor((age / SYNODIC) * 8 + 0.5) % 8;
+  const illum = Math.round((1 - Math.cos(2 * Math.PI * age / SYNODIC)) / 2 * 100);
+  return { name: PHASES[idx], illum, age: age.toFixed(1) };
+}
+
+let DATA = null;
+
+function drawWheel(signName) {
+  const svg = document.getElementById('chart');
+  const cx = 150, cy = 150, R = 140, r = 92;
+  let h = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="#171430" stroke="#4a4370"/>`;
+  const order = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
+  order.forEach((name, i) => {
+    const a0 = (i * 30 - 90) * Math.PI / 180, a1 = ((i + 1) * 30 - 90) * Math.PI / 180;
+    const x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
+    const x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
+    const fill = name === signName ? '#6d28d9' : '#241e45';
+    h += `<path d="M${cx},${cy} L${x0},${y0} A${R},${R} 0 0 1 ${x1},${y1} Z" fill="${fill}" stroke="#4a4370"/>`;
+    const am = (i * 30 - 75) * Math.PI / 180;
+    const tx = cx + (r + 22) * Math.cos(am), ty = cy + (r + 22) * Math.sin(am) + 7;
+    const g = SIGNS.find(s => s.n === name).g;
+    h += `<text x="${tx}" y="${ty}" fill="#e8e4f5" font-size="20" text-anchor="middle">${g}</text>`;
+  });
+  h += `<circle cx="${cx}" cy="${cy}" r="${r - 28}" fill="#12101f"/>`;
+  h += `<text x="${cx}" y="${cy + 8}" fill="#c4b5fd" font-size="22" text-anchor="middle">☀ ${signName}</text>`;
+  svg.innerHTML = h;
+}
+
+function chart() {
+  const v = document.getElementById('dob').value;
+  if (!v) { alert('Pick a birthday first.'); return; }
+  const [y, m, d] = v.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const sun = sunSign(m, d);
+  const cn = chinese(y);
+  const lp = lifePath(y, m, d);
+  const moon = moonPhase(dt);
+  const weekday = dt.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+  const name = document.getElementById('name').value.trim();
+  DATA = { y, m, d, weekday, sun, cn, lp, moon, name };
+
+  drawWheel(sun.n);
+  document.getElementById('facts').innerHTML =
+    `<span><b>Sun sign</b><br>${sun.g} ${sun.n} (${sun.el}, ruled by ${sun.ruler})</span>` +
+    `<span><b>Born on a</b><br>${weekday}</span>` +
+    `<span><b>Chinese zodiac</b><br>${cn.yy} ${cn.element} ${cn.animal}</span>` +
+    `<span><b>Moon at birth</b><br>${moon.name}, ${moon.illum}% lit</span>` +
+    `<span><b>Life path number</b><br>${lp}</span>` +
+    `<span><b>Sources combined</b><br>Western · Chinese · Lunar · Numerology</span>`;
+  document.getElementById('cny').textContent = (m <= 2)
+    ? 'Note: for January/February birthdays, the Chinese animal is read from the calendar year — if you were born before Chinese New Year that year, traditional charts use the previous animal.'
+    : '';
+  document.getElementById('quick').innerHTML =
+    `<p>☀ A ${sun.n} sun with a ${moon.name.toLowerCase()} birth moon, a ${cn.element} ${cn.animal} year, and life path ${lp} — four traditions, one birthday. The detailed reading below weaves them together and calls out where they agree and where they argue.</p>`;
+  document.getElementById('chartcard').style.display = 'block';
+  document.getElementById('aicard').style.display = 'block';
+}
+
+async function reading() {
+  if (!DATA) return;
+  const key = document.getElementById('key').value.trim();
+  if (!key) { alert('Paste your free Groq API key first (console.groq.com).'); return; }
+  const btn = document.getElementById('go');
+  btn.disabled = true; btn.textContent = '✨ Consulting the stars...';
+  const out = document.getElementById('out');
+  out.textContent = 'Asking the model...';
+  const { y, m, d, weekday, sun, cn, lp, moon, name } = DATA;
+  const prompt = `You are BirthStar, a warm, witty horoscope writer. Write an original, detailed horoscope reading that synthesizes FOUR sources for this person. Do not copy any published horoscope; invent the reading from the chart data.
+Name: ${name || 'the seeker'}
+Birthday: ${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')} (a ${weekday})
+Western sun sign: ${sun.n} (${sun.el} sign, ruled by ${sun.ruler})
+Chinese zodiac: ${cn.yy} ${cn.element} ${cn.animal}
+Moon phase at birth: ${moon.name}, ${moon.illum}% illuminated
+Life path number: ${lp}
+
+Reply in exactly these sections:
+1. THE CHART AT A GLANCE — one or two sentences combining all four sources
+2. SUN SIGN CORE — the ${sun.n} engine of the personality
+3. CROSS-CURRENTS — where the ${cn.animal} year and the ${moon.name} moon agree with the sun sign, and where they pull against it
+4. LIFE PATH ${lp} — what this number adds
+5. THIS WEEK — a short, specific-feeling horoscope for the week ahead
+6. LUCKY DETAILS — one lucky color, number, and small ritual
+Under 450 words. Playful but grounded. End with one line noting this is for entertainment.`;
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 900,
+        temperature: 0.8
+      })
+    });
+    if (!r.ok) throw new Error('API error ' + r.status);
+    const j = await r.json();
+    out.textContent = j.choices[0].message.content;
+  } catch (e) {
+    out.textContent = 'Error: ' + e.message + '\nCheck your API key and connection.';
+  }
+  btn.disabled = false; btn.textContent = '✍️ Write my reading';
+}
+</script>
+</body>
+</html>
