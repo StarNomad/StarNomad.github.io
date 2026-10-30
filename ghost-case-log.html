@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ghost Case Log — Paranormal Investigation Journal</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #14101f; color: #f2eefc; line-height: 1.5; }
+  main { max-width: 680px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.7rem; margin: 0.2em 0 0.1em; }
+  h2 { font-size: 1.15rem; margin-top: 1.6em; border-top: 1px solid #3d3357; padding-top: 0.8em; }
+  p { margin: 0.5em 0; }
+  .sub { color: #c9bfe0; }
+  .card { background: #221b36; border: 1px solid #3d3357; border-radius: 12px; padding: 14px; margin: 12px 0; }
+  label { display: block; font-weight: 600; margin: 10px 0 4px; }
+  input, select, textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #574a7a; background: #171226; color: #fff; font-size: 1rem; }
+  textarea { min-height: 72px; resize: vertical; }
+  button { width: 100%; padding: 12px; margin-top: 12px; border: 0; border-radius: 10px; background: #8b5cf6; color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer; }
+  button.secondary { background: #3d3357; }
+  button.danger { background: #5b2333; width: auto; padding: 6px 12px; margin: 0; font-size: 0.9rem; }
+  .entry { border-top: 1px solid #3d3357; padding: 10px 0; display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; }
+  .entry > div { min-width: 0; overflow-wrap: anywhere; }
+  .entry p { margin: 0.2em 0; }
+  .meta { color: #c9bfe0; font-size: 0.9rem; }
+  .tag { display: inline-block; background: #3d3357; border-radius: 999px; padding: 2px 10px; font-size: 0.85rem; }
+  .honest { background: #2a2110; border: 1px solid #8a6d2b; border-radius: 12px; padding: 12px; }
+  .summary { white-space: pre-wrap; }
+  .error { color: #ffb4b4; }
+  .small { font-size: 0.9rem; color: #c9bfe0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>👻 Ghost Case Log 🔎</h1>
+  <p class="sub">A paranormal investigation journal. Log what you noticed, in your own words — and honor the people who came before, in the spirit of Día de los Muertos.</p>
+
+  <div class="honest">
+    <strong>Honest labels, please read:</strong>
+    <ul>
+      <li>Readings here are <strong>user-entered log entries</strong>, typed in by you. This page does <strong>not</strong> measure EMF, temperature, or sound from your phone.</li>
+      <li>This is <strong>entertainment and investigation journaling</strong>, not proof of paranormal activity and not scientific validation.</li>
+      <li>Nothing is stored on a server. Your case log lives in this browser's local storage only — unless you choose the optional model summary below.</li>
+    </ul>
+  </div>
+
+  <h2>Open a case</h2>
+  <div class="card">
+    <label for="location">Location name</label>
+    <input id="location" type="text" placeholder="e.g. Old Warren Opera House" autocomplete="off">
+    <label for="casedate">Date of investigation</label>
+    <input id="casedate" type="date">
+    <label for="investigator">Investigator name (optional)</label>
+    <input id="investigator" type="text" placeholder="Your name, or leave blank" autocomplete="off">
+    <button id="saveCase" type="button">Save case details</button>
+    <p id="caseSaved" class="small" role="status"></p>
+  </div>
+
+  <h2>Log a reading</h2>
+  <div class="card">
+    <label for="rtype">Reading type</label>
+    <select id="rtype">
+      <option value="EMF spike">EMF spike (you noted it)</option>
+      <option value="Temperature drop">Temperature drop (you noted it)</option>
+      <option value="EVP note">EVP note</option>
+      <option value="General note">General note</option>
+    </select>
+    <label for="rvalue">Value or detail (optional)</label>
+    <input id="rvalue" type="text" placeholder="e.g. 2.4 mG on your meter, or 5°F colder by the door" autocomplete="off">
+    <label for="rnote">What happened, in your words</label>
+    <textarea id="rnote" placeholder="What did you see, hear, or feel? Where were you standing?"></textarea>
+    <button id="addEntry" type="button">Add to case log</button>
+    <p id="entryMsg" class="small" role="status"></p>
+  </div>
+
+  <h2>Case log</h2>
+  <div class="card" id="logCard">
+    <p id="caseHeader" class="meta">No case saved yet. Save a location above, then log readings.</p>
+    <div id="entries"></div>
+    <button id="clearLog" class="secondary" type="button">Clear all log entries (keeps case details)</button>
+  </div>
+
+  <h2>Optional: model summary</h2>
+  <div class="card">
+    <p class="small">Powered by an open-weight model, free at Groq's free tier. Your key never leaves this page except to call Groq's API directly.</p>
+    <label for="groqKey">Groq API key (free at console.groq.com — stays in your browser)</label>
+    <input id="groqKey" type="password" placeholder="gsk_…" autocomplete="off">
+    <p class="small">Model: <code id="modelName">llama-3.3-70b-versatile</code> — swap in any open model by changing one string in this file (search for MODEL in the code).</p>
+    <button id="summarize" type="button">Write investigation summary + honors-the-past section</button>
+    <p id="summaryMsg" class="small" role="status"></p>
+    <div id="summary" class="summary"></div>
+  </div>
+
+  <h2>Why open-weight?</h2>
+  <p>Ghost Case Log calls <strong>llama-3.3-70b-versatile</strong> — Meta's open-weight model — through Groq's free tier. No subscription, no per-case fee, no vendor lock-in. Swap in any open model (Mixtral, Qwen, DeepSeek) by changing one string. The whole app is one HTML file: no build step, no server, works from a phone on location.</p>
+  <p><strong>Why open innovation matters here:</strong> a spooky story is only as good as the people in it. Open models let a small investigator, a local historian, or a family remembering someone keep the whole tool in their own hands — no account, no server storing their case log, no company deciding which past gets remembered. The past belongs to everyone, so the tool for honoring it should too.</p>
+  <p class="small">Respect note: this journal is for remembering people with care, not mocking the dead. Write about the living history of a place — who worked there, who loved there, who is missed there — and leave pranks and disrespect out of the log.</p>
+</main>
+<script>
+  // MODEL: change this one string to swap in any open model.
+  var MODEL = 'llama-3.3-70b-versatile';
+  var KEY = 'gcl_entries_v1';
+  var CASE_KEY = 'gcl_case_v1';
+
+  function loadEntries() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function saveEntries(list) { localStorage.setItem(KEY, JSON.stringify(list)); }
+  function loadCase() {
+    try { return JSON.parse(localStorage.getItem(CASE_KEY) || 'null'); }
+    catch (e) { return null; }
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function render() {
+    var entries = loadEntries();
+    var c = loadCase();
+    var header = document.getElementById('caseHeader');
+    if (c && (c.location || c.date || c.investigator)) {
+      header.textContent = 'Case: ' + (c.location || 'Unnamed location')
+        + (c.date ? ' · ' + c.date : '')
+        + (c.investigator ? ' · Investigator: ' + c.investigator : '');
+      document.getElementById('location').value = c.location || '';
+      document.getElementById('casedate').value = c.date || '';
+      document.getElementById('investigator').value = c.investigator || '';
+    }
+    var box = document.getElementById('entries');
+    if (!entries.length) {
+      box.innerHTML = '<p class="meta">No readings logged yet.</p>';
+      return;
+    }
+    box.innerHTML = entries.map(function (e, i) {
+      return '<div class="entry"><div><span class="tag">' + esc(e.type) + '</span>'
+        + '<p>' + esc(e.note || '(no note)') + '</p>'
+        + (e.value ? '<p class="meta">Detail: ' + esc(e.value) + '</p>' : '')
+        + '<p class="meta">' + esc(e.when) + '</p></div>'
+        + '<button class="danger" type="button" data-del="' + i + '">Delete</button></div>';
+    }).join('');
+    box.querySelectorAll('[data-del]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var list = loadEntries();
+        list.splice(Number(b.getAttribute('data-del')), 1);
+        saveEntries(list);
+        render();
+      });
+    });
+  }
+
+  document.getElementById('saveCase').addEventListener('click', function () {
+    var c = {
+      location: document.getElementById('location').value.trim(),
+      date: document.getElementById('casedate').value,
+      investigator: document.getElementById('investigator').value.trim()
+    };
+    localStorage.setItem(CASE_KEY, JSON.stringify(c));
+    document.getElementById('caseSaved').textContent = 'Case details saved in this browser.';
+    render();
+  });
+
+  document.getElementById('addEntry').addEventListener('click', function () {
+    var note = document.getElementById('rnote').value.trim();
+    if (!note) {
+      document.getElementById('entryMsg').textContent = 'Add a short note about what happened first.';
+      return;
+    }
+    var list = loadEntries();
+    list.unshift({
+      type: document.getElementById('rtype').value,
+      value: document.getElementById('rvalue').value.trim(),
+      note: note,
+      when: new Date().toLocaleString()
+    });
+    saveEntries(list);
+    document.getElementById('rnote').value = '';
+    document.getElementById('rvalue').value = '';
+    document.getElementById('entryMsg').textContent = 'Reading added to the case log.';
+    render();
+  });
+
+  document.getElementById('clearLog').addEventListener('click', function () {
+    localStorage.removeItem(KEY);
+    render();
+  });
+
+  document.getElementById('summarize').addEventListener('click', function () {
+    var key = document.getElementById('groqKey').value.trim();
+    var msg = document.getElementById('summaryMsg');
+    var out = document.getElementById('summary');
+    if (!key) {
+      msg.textContent = 'Add a Groq key to enable the model summary. Get a free key at console.groq.com — it stays in your browser.';
+      msg.className = 'small error';
+      return;
+    }
+    var entries = loadEntries();
+    var c = loadCase() || {};
+    if (!entries.length) {
+      msg.textContent = 'Log at least one reading first, so the summary has a case to write about.';
+      return;
+    }
+    msg.textContent = 'Asking the model…';
+    out.textContent = '';
+    var logText = entries.map(function (e) {
+      return '- [' + e.type + '] ' + (e.value ? e.value + ' — ' : '') + e.note + ' (' + e.when + ')';
+    }).join('\n');
+    var prompt = 'You are writing for a paranormal investigation journal called Ghost Case Log. '
+      + 'Location: ' + (c.location || 'unknown') + '. Date: ' + (c.date || 'unknown')
+      + '. Investigator: ' + (c.investigator || 'not given') + '.\n\nCase log:\n' + logText
+      + '\n\nWrite two sections, in plain words, respectful tone. '
+      + '1) Investigation summary: what the log shows, in order, without claiming proof of ghosts or the paranormal. '
+      + '2) Honors the past: the human history such a place might hold — who may have lived, worked, or been missed there — written as remembrance, clearly framed as general history and storytelling, not as verified facts about this specific location unless the log gives them. '
+      + 'Do not claim any reading proves paranormal activity. Keep it under 400 words.';
+    fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7
+      })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('Groq returned ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      var text = data && data.choices && data.choices[0] && data.choices[0].message
+        ? data.choices[0].message.content : '';
+      out.textContent = text || 'The model returned an empty summary. Try again.';
+      msg.textContent = 'Summary written by ' + MODEL + '.';
+    }).catch(function (err) {
+      msg.textContent = 'Could not get a summary: ' + err.message + '. Check the key and try again.';
+    });
+  });
+
+  render();
+</script>
+</body>
+</html>
